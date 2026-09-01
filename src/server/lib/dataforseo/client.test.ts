@@ -14,13 +14,19 @@ interface TrackCallArg {
   properties?: { balanceFeatureId: string };
 }
 
-const { checkMock, trackMock, getOrCreateMock, isHostedServerAuthModeMock } =
-  vi.hoisted(() => ({
-    checkMock: vi.fn(),
-    trackMock: vi.fn<(arg: TrackCallArg) => void>(),
-    getOrCreateMock: vi.fn(),
-    isHostedServerAuthModeMock: vi.fn(),
-  }));
+const {
+  checkMock,
+  trackMock,
+  getOrCreateMock,
+  isHostedServerAuthModeMock,
+  recordSpendMock,
+} = vi.hoisted(() => ({
+  checkMock: vi.fn(),
+  trackMock: vi.fn<(arg: TrackCallArg) => void>(),
+  getOrCreateMock: vi.fn(),
+  isHostedServerAuthModeMock: vi.fn(),
+  recordSpendMock: vi.fn(),
+}));
 
 vi.mock("cloudflare:workers", () => ({
   waitUntil: vi.fn(),
@@ -47,6 +53,10 @@ vi.mock("@/server/billing/subscription", async (importOriginal) => {
 
 vi.mock("@/server/lib/runtime-env", () => ({
   isHostedServerAuthMode: isHostedServerAuthModeMock,
+}));
+
+vi.mock("@/server/features/spend/services/SpendService", () => ({
+  recordDataforseoSpend: recordSpendMock,
 }));
 
 vi.mock("@/server/lib/posthog", () => ({
@@ -149,6 +159,46 @@ describe("meterDataforseoCall with split balances", () => {
     expect(result).toEqual({ rank: 42 });
     expect(checkMock).not.toHaveBeenCalled();
     expect(trackMock).not.toHaveBeenCalled();
+  });
+
+  it("records self-hosted spend instead of discarding the call cost", async () => {
+    isHostedServerAuthModeMock.mockResolvedValue(false);
+    mockDataforseoResult(0.05);
+
+    const client = createDataforseoClient(billingCustomer);
+    await client.backlinks.summary(backlinksInput);
+
+    expect(recordSpendMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        billing: { costUsd: 0.05, path: ["backlinks", "summary"] },
+        organizationId: "org_123",
+      }),
+    );
+  });
+
+  it("records a self-hosted call that DataForSEO billed and then failed", async () => {
+    isHostedServerAuthModeMock.mockResolvedValue(false);
+    vi.mocked(fetchBacklinksSummary).mockRejectedValue(
+      new DataforseoChargedTaskError("DataForSEO task failed", {
+        costUsd: 0.03,
+        path: ["v3", "backlinks", "summary", "live"],
+      }),
+    );
+
+    const client = createDataforseoClient(billingCustomer);
+    await expect(client.backlinks.summary(backlinksInput)).rejects.toThrow(
+      "DataForSEO task failed",
+    );
+
+    expect(recordSpendMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        billing: {
+          costUsd: 0.03,
+          path: ["v3", "backlinks", "summary", "live"],
+        },
+        outcome: "charged_failure",
+      }),
+    );
   });
 
   it("checks both monthly and topup balances in parallel", async () => {

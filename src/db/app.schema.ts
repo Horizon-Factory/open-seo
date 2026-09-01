@@ -421,3 +421,38 @@ export const backlinkSnapshots = sqliteTable(
     ),
   ],
 );
+
+// Per-call DataForSEO spend. Every call already carries its own cost in the
+// response envelope; hosted mode forwards that to the credit ledger, while
+// self-hosted mode used to discard it — leaving no way to see where an account
+// balance went. This table is that record.
+export const dataforseoSpend = sqliteTable(
+  "dataforseo_spend",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    // Plain text, deliberately NOT a foreign key: self-hosted runs under a
+    // synthetic organization id ("delegated-local-admin") with no row in
+    // `organization`, and an FK would reject every insert.
+    organizationId: text("organization_id"),
+    // Nulled rather than cascaded on project delete, so spend history survives
+    // the project that caused it.
+    projectId: text("project_id").references(() => projects.id, {
+      onDelete: "set null",
+    }),
+    path: text("path").notNull(),
+    creditFeature: text("credit_feature").notNull(),
+    costUsd: real("cost_usd").notNull(),
+    // MCP tool or route that triggered the call, when known.
+    source: text("source"),
+    // "ok" | "charged_failure" — a call DataForSEO billed and then failed.
+    outcome: text("outcome").notNull().default("ok"),
+    occurredAt: text("occurred_at")
+      .notNull()
+      .default(sql`(current_timestamp)`),
+  },
+  (table) => [
+    index("dataforseo_spend_occurred_idx").on(table.occurredAt),
+    index("dataforseo_spend_feature_idx").on(table.creditFeature),
+    index("dataforseo_spend_project_idx").on(table.projectId),
+  ],
+);

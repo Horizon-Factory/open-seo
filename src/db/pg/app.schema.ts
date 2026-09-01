@@ -409,3 +409,26 @@ export const backlinkSnapshots = pgTable(
     ),
   ],
 );
+
+// Postgres twin of `dataforseoSpend` — see the SQLite schema for the rationale.
+export const dataforseoSpend = pgTable(
+  "dataforseo_spend",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: text("organization_id"),
+    projectId: text("project_id").references(() => projects.id, {
+      onDelete: "set null",
+    }),
+    path: text("path").notNull(),
+    creditFeature: text("credit_feature").notNull(),
+    costUsd: real("cost_usd").notNull(),
+    source: text("source"),
+    outcome: text("outcome").notNull().default("ok"),
+    occurredAt: timestampColumn("occurred_at").notNull().default(isoNow),
+  },
+  (table) => [
+    index("dataforseo_spend_occurred_idx").on(table.occurredAt),
+    index("dataforseo_spend_feature_idx").on(table.creditFeature),
+    index("dataforseo_spend_project_idx").on(table.projectId),
+  ],
+);

@@ -7,6 +7,7 @@ import {
   LayoutGrid,
   LogOut,
   MessageCircle,
+  Receipt,
   Settings,
   User,
   X,
@@ -273,7 +274,14 @@ function SidebarFooter({ onNavigate }: { onNavigate?: () => void }) {
                   Billing
                 </Link>
               </li>
-            ) : null}
+            ) : (
+              <li>
+                <Link to="/spend" onClick={closeMenu}>
+                  <Receipt className="h-4 w-4" />
+                  Data spend
+                </Link>
+              </li>
+            )}
             <ThemePreferenceMenuItems />
             {isHostedMode ? (
               <>
@@ -296,12 +304,22 @@ function SidebarFooter({ onNavigate }: { onNavigate?: () => void }) {
           </ul>
         </div>
       ) : (
-        <SidebarNavLink
-          icon={Settings}
-          label="Settings"
-          onNavigate={onNavigate}
-          linkProps={{ to: "/settings" }}
-        />
+        <>
+          {isHostedMode ? null : (
+            <SidebarNavLink
+              icon={Receipt}
+              label="Data spend"
+              onNavigate={onNavigate}
+              linkProps={{ to: "/spend" }}
+            />
+          )}
+          <SidebarNavLink
+            icon={Settings}
+            label="Settings"
+            onNavigate={onNavigate}
+            linkProps={{ to: "/settings" }}
+          />
+        </>
       )}
     </div>
   );

@@ -151,6 +151,16 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
   } as const;
 }
 
+/**
+ * Lazily loaded for the same reason as the section modules above: a static
+ * import would pull `@/db` (and the Cloudflare `env` binding it reads at module
+ * scope) into this module's eager graph, breaking consumers that only want the
+ * DataForSEO client.
+ */
+function loadSpendRecorder() {
+  return import("@/server/features/spend/services/SpendService");
+}
+
 async function meterDataforseoCall<T>(
   customer: BillingCustomerContext,
   execute: () => Promise<DataforseoApiResponse<T>>,
@@ -159,8 +169,33 @@ async function meterDataforseoCall<T>(
   const isHostedMode = await isHostedServerAuthMode();
 
   if (!isHostedMode) {
-    const result = await execute();
-    return result.data;
+    // Self-hosted has no credit ledger, but the call still spent real money on
+    // the operator's own DataForSEO account. Record it rather than discarding
+    // the cost, so a drained balance can be explained. recordDataforseoSpend
+    // never throws, so awaiting it cannot fail a call the user already paid for.
+    try {
+      const result = await execute();
+      const { recordDataforseoSpend } = await loadSpendRecorder();
+      await recordDataforseoSpend({
+        billing: result.billing,
+        creditFeature,
+        organizationId: customer.organizationId,
+      });
+      return result.data;
+    } catch (error) {
+      // Billed-then-failed calls are the ones most worth seeing: they cost
+      // money and returned nothing.
+      if (error instanceof DataforseoChargedTaskError) {
+        const { recordDataforseoSpend } = await loadSpendRecorder();
+        await recordDataforseoSpend({
+          billing: error.billing,
+          creditFeature,
+          organizationId: customer.organizationId,
+          outcome: "charged_failure",
+        });
+      }
+      throw error;
+    }
   }
 
   const billingCustomer = await getOrCreateOrganizationCustomer(customer);

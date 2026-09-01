@@ -302,6 +302,13 @@
       "when": 1787099999115,
       "tag": "0042_project_memory",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "6",
+      "when": 1788264163659,
+      "tag": "0043_broken_bastion",
+      "breakpoints": true
     }
   ]
 }
