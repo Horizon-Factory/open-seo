@@ -11,6 +11,9 @@ export type SpendRow = {
 
 export type SpendGroup = { key: string; costUsd: number; calls: number };
 
+/** Grouping key for spend with no project recorded (all backfilled history). */
+export const UNASSIGNED_PROJECT = "unassigned";
+
 export type SpendSummary = {
   totalUsd: number;
   /** Spend on calls DataForSEO billed and that then failed — money for nothing. */
@@ -54,8 +57,9 @@ export function summariseSpend(rows: SpendRow[]): SpendSummary {
     byDay: group(rows, (row) => row.occurredAt.slice(0, 10)).toSorted((a, b) =>
       a.key.localeCompare(b.key),
     ),
-    byProject: group(rows, (row) => row.projectId ?? "unassigned").toSorted(
-      byCostThenKey,
-    ),
+    byProject: group(
+      rows,
+      (row) => row.projectId ?? UNASSIGNED_PROJECT,
+    ).toSorted(byCostThenKey),
   };
 }

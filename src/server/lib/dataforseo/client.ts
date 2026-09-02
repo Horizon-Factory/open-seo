@@ -184,6 +184,7 @@ async function meterDataforseoCall<T>(
         creditFeature,
         subject,
         organizationId: customer.organizationId,
+        projectId: customer.projectId,
       });
       return result.data;
     } catch (error) {
@@ -196,6 +197,7 @@ async function meterDataforseoCall<T>(
           creditFeature,
           subject,
           organizationId: customer.organizationId,
+          projectId: customer.projectId,
           outcome: "charged_failure",
         });
       }

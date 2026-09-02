@@ -1,4 +1,5 @@
-import { and, desc, eq, gte } from "drizzle-orm";
+import { and, desc, eq, gte, isNull } from "drizzle-orm";
+import { UNASSIGNED_PROJECT } from "@/server/features/spend/summariseSpend";
 import { db } from "@/db";
 import { dataforseoSpend } from "@/db/schema";
 import type { SpendEntry } from "@/server/features/spend/spendLog";
@@ -31,6 +32,8 @@ export async function insertSpendEntry(entry: StoredSpendEntry): Promise<void> {
 export async function listSpendRowsSince(
   organizationId: string,
   sinceIso: string,
+  /** "unassigned" selects rows no project was recorded for. */
+  projectId?: string,
 ): Promise<SpendRow[]> {
   const rows = await db
     .select({
@@ -48,6 +51,11 @@ export async function listSpendRowsSince(
       and(
         eq(dataforseoSpend.organizationId, organizationId),
         gte(dataforseoSpend.occurredAt, sinceIso),
+        projectId === undefined
+          ? undefined
+          : projectId === UNASSIGNED_PROJECT
+            ? isNull(dataforseoSpend.projectId)
+            : eq(dataforseoSpend.projectId, projectId),
       ),
     )
     .orderBy(desc(dataforseoSpend.occurredAt));

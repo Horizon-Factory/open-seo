@@ -14,17 +14,28 @@ const usd = (value: number) =>
     maximumFractionDigits: value > 0 && value < 0.01 ? 4 : 2,
   });
 
+const UNASSIGNED = "unassigned";
+
 export function SpendPage() {
   const [days, setDays] = useState<number>(30);
+  const [projectId, setProjectId] = useState<string>("");
 
   const reportQuery = useQuery({
-    queryKey: ["dataforseo-spend", days],
-    queryFn: () => getDataforseoSpendReport({ data: { days } }),
+    queryKey: ["dataforseo-spend", days, projectId],
+    queryFn: () =>
+      getDataforseoSpendReport({
+        data: { days, projectId: projectId === "" ? undefined : projectId },
+      }),
     staleTime: 30_000,
   });
 
   const report = reportQuery.data;
   const summary = report?.summary;
+  // Backfilled history predates project attribution, so it groups as unassigned.
+  const projectName = (id: string) =>
+    id === UNASSIGNED
+      ? "No project"
+      : (report?.projects.find((p) => p.id === id)?.name ?? id);
   const maxDay = Math.max(1, ...(summary?.byDay ?? []).map((d) => d.costUsd));
 
   return (
@@ -36,7 +47,21 @@ export function SpendPage() {
             What this deployment spent on your own DataForSEO account.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            className="select select-bordered select-sm"
+            value={projectId}
+            onChange={(event) => setProjectId(event.target.value)}
+            aria-label="Filter by project"
+          >
+            <option value="">All projects</option>
+            {(report?.projects ?? []).map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+            <option value={UNASSIGNED}>No project</option>
+          </select>
           <div className="join">
             {WINDOWS.map((window) => (
               <button
@@ -133,6 +158,25 @@ export function SpendPage() {
           </section>
 
           <section className="rounded-box border border-base-300 bg-base-100 p-4">
+            <h2 className="mb-3 font-medium">By project</h2>
+            <table className="table table-sm">
+              <tbody>
+                {summary.byProject.map((row) => (
+                  <tr key={row.key}>
+                    <td>{projectName(row.key)}</td>
+                    <td className="text-right text-base-content/60">
+                      {row.calls} calls
+                    </td>
+                    <td className="text-right font-medium">
+                      {usd(row.costUsd)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+
+          <section className="rounded-box border border-base-300 bg-base-100 p-4">
             <h2 className="mb-3 font-medium">By day</h2>
             <ul className="space-y-2">
               {summary.byDay.map((row) => (
@@ -161,6 +205,7 @@ export function SpendPage() {
                 <thead>
                   <tr>
                     <th>When</th>
+                    <th>Project</th>
                     <th>For</th>
                     <th>Endpoint</th>
                     <th>Source</th>
@@ -172,6 +217,9 @@ export function SpendPage() {
                     <tr key={`${row.occurredAt}-${index}`}>
                       <td className="whitespace-nowrap text-base-content/60">
                         {row.occurredAt.slice(0, 16).replace("T", " ")}
+                      </td>
+                      <td className="whitespace-nowrap text-base-content/60">
+                        {row.projectId ? projectName(row.projectId) : "—"}
                       </td>
                       <td className="max-w-[16rem] truncate font-medium">
                         {row.subject ?? "—"}

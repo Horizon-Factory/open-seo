@@ -176,6 +176,21 @@ describe("meterDataforseoCall with split balances", () => {
     );
   });
 
+  it("attributes self-hosted spend to the project the call was made from", async () => {
+    isHostedServerAuthModeMock.mockResolvedValue(false);
+    mockDataforseoResult(0.05);
+
+    const client = createDataforseoClient({
+      ...billingCustomer,
+      projectId: "proj_notus",
+    });
+    await client.backlinks.summary(backlinksInput);
+
+    expect(recordSpendMock).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: "proj_notus" }),
+    );
+  });
+
   it("records a self-hosted call that DataForSEO billed and then failed", async () => {
     isHostedServerAuthModeMock.mockResolvedValue(false);
     vi.mocked(fetchBacklinksSummary).mockRejectedValue(

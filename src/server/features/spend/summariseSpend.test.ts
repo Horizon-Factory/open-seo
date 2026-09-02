@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { summariseSpend, type SpendRow } from "./summariseSpend";
+import {
+  summariseSpend,
+  UNASSIGNED_PROJECT,
+  type SpendRow,
+} from "./summariseSpend";
 
 const rows: SpendRow[] = [
   {
@@ -53,5 +57,24 @@ describe("summariseSpend", () => {
     expect(empty.totalUsd).toBe(0);
     expect(empty.wastedUsd).toBe(0);
     expect(empty.byFeature).toEqual([]);
+  });
+
+  it("groups spend with no recorded project under a single unassigned key", () => {
+    const summary = summariseSpend([
+      ...rows,
+      {
+        occurredAt: "2026-08-31T12:00:00Z",
+        creditFeature: "backlinks",
+        costUsd: 1,
+        projectId: null,
+        outcome: "ok",
+      },
+    ]);
+
+    expect(summary.byProject).toContainEqual({
+      key: UNASSIGNED_PROJECT,
+      costUsd: 1,
+      calls: 1,
+    });
   });
 });

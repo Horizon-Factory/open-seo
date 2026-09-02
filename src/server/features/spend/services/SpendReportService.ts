@@ -1,4 +1,5 @@
 import { fetchUserData } from "@/server/lib/dataforseo/appendix";
+import { ProjectRepository } from "@/server/features/projects/repositories/ProjectRepository";
 import { listSpendRowsSince } from "@/server/features/spend/repositories/SpendRepository";
 import {
   summariseSpend,
@@ -11,8 +12,12 @@ export type SpendAccountBalance = {
   depositedTotalUsd: number | null;
 };
 
+export type SpendProject = { id: string; name: string };
+
 export type SpendReport = {
   sinceIso: string;
+  /** Every project in the org, so the UI can label and filter by name. */
+  projects: SpendProject[];
   /** Live DataForSEO account figures; null when the account could not be read. */
   account: SpendAccountBalance | null;
   summary: SpendSummary;
@@ -24,12 +29,20 @@ const RECENT_CALL_LIMIT = 100;
 export async function getSpendReport(
   organizationId: string,
   days: number,
+  projectId?: string,
 ): Promise<SpendReport> {
   const sinceIso = new Date(Date.now() - days * 86_400_000).toISOString();
-  const rows = await listSpendRowsSince(organizationId, sinceIso);
+  const [rows, projects] = await Promise.all([
+    listSpendRowsSince(organizationId, sinceIso, projectId),
+    ProjectRepository.listProjects(organizationId),
+  ]);
 
   return {
     sinceIso,
+    projects: projects.map((project) => ({
+      id: project.id,
+      name: project.name,
+    })),
     account: await readAccountBalance(),
     summary: summariseSpend(rows),
     recent: rows.slice(0, RECENT_CALL_LIMIT),
