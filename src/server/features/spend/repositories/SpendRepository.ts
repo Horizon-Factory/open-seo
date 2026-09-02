@@ -4,15 +4,20 @@ import { dataforseoSpend } from "@/db/schema";
 import type { SpendEntry } from "@/server/features/spend/spendLog";
 import type { SpendRow } from "@/server/features/spend/summariseSpend";
 
-export type StoredSpendEntry = SpendEntry & { organizationId: string | null };
+export type StoredSpendEntry = SpendEntry & {
+  organizationId: string | null;
+  taskId?: string | null;
+};
 
 export async function insertSpendEntry(entry: StoredSpendEntry): Promise<void> {
   await db.insert(dataforseoSpend).values({
     organizationId: entry.organizationId,
     projectId: entry.projectId,
+    taskId: entry.taskId ?? null,
     path: entry.path,
     creditFeature: entry.creditFeature,
     costUsd: entry.costUsd,
+    subject: entry.subject,
     source: entry.source,
     outcome: entry.outcome,
     occurredAt: entry.occurredAt,
@@ -32,6 +37,7 @@ export async function listSpendRowsSince(
       occurredAt: dataforseoSpend.occurredAt,
       creditFeature: dataforseoSpend.creditFeature,
       costUsd: dataforseoSpend.costUsd,
+      subject: dataforseoSpend.subject,
       projectId: dataforseoSpend.projectId,
       outcome: dataforseoSpend.outcome,
       path: dataforseoSpend.path,

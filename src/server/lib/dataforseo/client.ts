@@ -17,6 +17,7 @@ import {
   type DataforseoApiResponse,
 } from "@/server/lib/dataforseo/envelope";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
+import { extractSpendSubject } from "@/server/features/spend/spendLog";
 import { AppError } from "@/server/lib/errors";
 
 export { mapDataforseoPathToCreditFeature };
@@ -57,6 +58,7 @@ function meter<I, T>(
       customer,
       async () => pick(await loadDataforseoSections())(input),
       input.creditFeature ?? defaultFeature,
+      extractSpendSubject(input),
     );
 }
 
@@ -165,6 +167,7 @@ async function meterDataforseoCall<T>(
   customer: BillingCustomerContext,
   execute: () => Promise<DataforseoApiResponse<T>>,
   creditFeature?: CreditFeature,
+  subject?: string | null,
 ): Promise<T> {
   const isHostedMode = await isHostedServerAuthMode();
 
@@ -179,6 +182,7 @@ async function meterDataforseoCall<T>(
       await recordDataforseoSpend({
         billing: result.billing,
         creditFeature,
+        subject,
         organizationId: customer.organizationId,
       });
       return result.data;
@@ -190,6 +194,7 @@ async function meterDataforseoCall<T>(
         await recordDataforseoSpend({
           billing: error.billing,
           creditFeature,
+          subject,
           organizationId: customer.organizationId,
           outcome: "charged_failure",
         });

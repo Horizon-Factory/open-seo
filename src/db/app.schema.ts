@@ -439,9 +439,13 @@ export const dataforseoSpend = sqliteTable(
     projectId: text("project_id").references(() => projects.id, {
       onDelete: "set null",
     }),
+    // DataForSEO's own task id. Unique so a backfill can be re-run safely.
+    taskId: text("task_id"),
     path: text("path").notNull(),
     creditFeature: text("credit_feature").notNull(),
     costUsd: real("cost_usd").notNull(),
+    // What the call was for: the keyword, target or domain.
+    subject: text("subject"),
     // MCP tool or route that triggered the call, when known.
     source: text("source"),
     // "ok" | "charged_failure" — a call DataForSEO billed and then failed.
@@ -454,5 +458,6 @@ export const dataforseoSpend = sqliteTable(
     index("dataforseo_spend_occurred_idx").on(table.occurredAt),
     index("dataforseo_spend_feature_idx").on(table.creditFeature),
     index("dataforseo_spend_project_idx").on(table.projectId),
+    uniqueIndex("dataforseo_spend_task_id_idx").on(table.taskId),
   ],
 );

@@ -419,9 +419,11 @@ export const dataforseoSpend = pgTable(
     projectId: text("project_id").references(() => projects.id, {
       onDelete: "set null",
     }),
+    taskId: text("task_id"),
     path: text("path").notNull(),
     creditFeature: text("credit_feature").notNull(),
     costUsd: real("cost_usd").notNull(),
+    subject: text("subject"),
     source: text("source"),
     outcome: text("outcome").notNull().default("ok"),
     occurredAt: timestampColumn("occurred_at").notNull().default(isoNow),
@@ -430,5 +432,6 @@ export const dataforseoSpend = pgTable(
     index("dataforseo_spend_occurred_idx").on(table.occurredAt),
     index("dataforseo_spend_feature_idx").on(table.creditFeature),
     index("dataforseo_spend_project_idx").on(table.projectId),
+    uniqueIndex("dataforseo_spend_task_id_idx").on(table.taskId),
   ],
 );

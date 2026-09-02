@@ -309,6 +309,13 @@
       "when": 1788264163659,
       "tag": "0043_broken_bastion",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "6",
+      "when": 1788283059370,
+      "tag": "0044_sparkling_gertrude_yorkes",
+      "breakpoints": true
     }
   ]
 }

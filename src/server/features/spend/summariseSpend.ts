@@ -5,6 +5,7 @@ export type SpendRow = {
   projectId: string | null;
   outcome: string;
   path?: string;
+  subject?: string | null;
   source?: string | null;
 };
 

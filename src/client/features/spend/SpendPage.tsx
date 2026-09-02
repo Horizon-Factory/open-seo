@@ -161,6 +161,7 @@ export function SpendPage() {
                 <thead>
                   <tr>
                     <th>When</th>
+                    <th>For</th>
                     <th>Endpoint</th>
                     <th>Source</th>
                     <th className="text-right">Cost</th>
@@ -171,6 +172,9 @@ export function SpendPage() {
                     <tr key={`${row.occurredAt}-${index}`}>
                       <td className="whitespace-nowrap text-base-content/60">
                         {row.occurredAt.slice(0, 16).replace("T", " ")}
+                      </td>
+                      <td className="max-w-[16rem] truncate font-medium">
+                        {row.subject ?? "—"}
                       </td>
                       <td className="font-mono text-xs">
                         {row.path}

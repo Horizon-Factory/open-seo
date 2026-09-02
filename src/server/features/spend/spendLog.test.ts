@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSpendEntry } from "./spendLog";
+import { buildSpendEntry, extractSpendSubject } from "./spendLog";
 
 describe("buildSpendEntry", () => {
   it("derives the credit feature from the DataForSEO path when none is given", () => {
@@ -59,5 +59,27 @@ describe("buildSpendEntry", () => {
     });
 
     expect(entry.occurredAt).toBe("2026-09-01T10:00:00.000Z");
+  });
+});
+
+describe("extractSpendSubject", () => {
+  it("names the keyword a research call was for", () => {
+    expect(extractSpendSubject({ keyword: "agence web" })).toBe("agence web");
+  });
+
+  it("names the target a domain or backlinks call was for", () => {
+    expect(extractSpendSubject({ target: "horizonfactory.fr" })).toBe(
+      "horizonfactory.fr",
+    );
+  });
+
+  it("uses the first keyword when a call sends a batch", () => {
+    expect(extractSpendSubject({ keywords: ["seo audit", "seo tools"] })).toBe(
+      "seo audit",
+    );
+  });
+
+  it("returns null when the input names no subject", () => {
+    expect(extractSpendSubject({ limit: 10 })).toBeNull();
   });
 });

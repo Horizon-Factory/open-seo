@@ -11,6 +11,7 @@ export type SpendEntryInput = {
   billing: DataforseoApiCallCost;
   creditFeature?: CreditFeature;
   source?: string;
+  subject?: string | null;
   projectId?: string;
   outcome?: SpendOutcome;
   /** Injectable clock for tests. */
@@ -22,6 +23,7 @@ export type SpendEntry = {
   creditFeature: CreditFeature;
   costUsd: number;
   source: string | null;
+  subject: string | null;
   projectId: string | null;
   outcome: SpendOutcome;
   occurredAt: string;
@@ -45,6 +47,7 @@ export function buildSpendEntry(input: SpendEntryInput): SpendEntry {
       mapDataforseoPathToCreditFeature(input.billing.path),
     costUsd: input.billing.costUsd,
     source: input.source ?? null,
+    subject: input.subject ?? null,
     projectId: input.projectId ?? null,
     outcome: input.outcome ?? "ok",
     // Written by the app rather than left to a column default: SQLite's
@@ -53,4 +56,30 @@ export function buildSpendEntry(input: SpendEntryInput): SpendEntry {
     // string. One format keeps both dialects answering the same question.
     occurredAt: (input.now ?? new Date()).toISOString(),
   };
+}
+
+/**
+ * What a call was for, read straight off the request input. Endpoints name
+ * their subject differently — keyword research uses `keyword`, domain and
+ * backlinks endpoints use `target`/`domain`, batch lookups send `keywords` —
+ * so this is read generically at the metering boundary rather than threaded
+ * through every call site.
+ */
+export function extractSpendSubject(input: unknown): string | null {
+  if (typeof input !== "object" || input === null) return null;
+
+  const read = (key: string): unknown =>
+    key in input ? Reflect.get(input, key) : undefined;
+
+  for (const key of ["keyword", "target", "domain"]) {
+    const value = read(key);
+    if (typeof value === "string" && value.length > 0) return value;
+  }
+
+  const keywords = read("keywords");
+  if (Array.isArray(keywords) && typeof keywords[0] === "string") {
+    return keywords[0];
+  }
+
+  return null;
 }
