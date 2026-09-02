@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapIdListTaskToSpendEntry } from "./backfill";
+import { mapIdListTaskToSpendEntry, mergeTaskMetadata } from "./backfill";
 
 describe("mapIdListTaskToSpendEntry", () => {
   it("maps a keyword task to a spend entry with its subject and exact time", () => {
@@ -47,5 +47,52 @@ describe("mapIdListTaskToSpendEntry", () => {
 
     expect(entry.outcome).toBe("charged_failure");
     expect(entry.subject).toBeNull();
+  });
+});
+
+describe("mergeTaskMetadata", () => {
+  // DataForSEO only retains request metadata for one month, and rejects any
+  // datetime_from older than that when include_metadata is true. So the full
+  // window is fetched without metadata and enriched from a second, recent pass.
+  const older = {
+    id: "old",
+    url: "v3/serp/google/organic/live/advanced",
+    datetime_posted: "2026-07-01 10:00:00 +00:00",
+    cost: 0.006,
+    status: 20000,
+    metadata: null,
+  };
+  const recent = {
+    id: "new",
+    url: "v3/dataforseo_labs/google/related_keywords/live",
+    datetime_posted: "2026-08-30 18:01:57 +00:00",
+    cost: 0.02,
+    status: 20000,
+    metadata: null,
+  };
+
+  it("keeps every task from the full window", () => {
+    const merged = mergeTaskMetadata([older, recent], []);
+    expect(merged.map((t) => t.id)).toEqual(["old", "new"]);
+  });
+
+  it("enriches a task with metadata from the recent pass", () => {
+    const merged = mergeTaskMetadata(
+      [older, recent],
+      [{ ...recent, metadata: { keyword: "dictaphone ia" } }],
+    );
+
+    expect(merged.find((t) => t.id === "new")?.metadata).toEqual({
+      keyword: "dictaphone ia",
+    });
+    expect(merged.find((t) => t.id === "old")?.metadata).toBeNull();
+  });
+
+  it("does not invent tasks that the full window did not return", () => {
+    const merged = mergeTaskMetadata(
+      [recent],
+      [{ ...older, metadata: { keyword: "ghost" } }],
+    );
+    expect(merged).toHaveLength(1);
   });
 });

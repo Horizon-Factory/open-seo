@@ -62,3 +62,24 @@ export function mapIdListTaskToSpendEntry(
 
   return { ...entry, taskId: task.id, subject: extractSubject(task.metadata) };
 }
+
+/**
+ * DataForSEO retains request metadata for one month only, and rejects a
+ * `datetime_from` older than that outright when `include_metadata` is true.
+ * So the full window is fetched WITHOUT metadata, and a second pass over the
+ * last month supplies the subjects. The full window is authoritative for which
+ * tasks exist; the recent pass only enriches.
+ */
+export function mergeTaskMetadata(
+  fullWindow: IdListTask[],
+  withMetadata: IdListTask[],
+): IdListTask[] {
+  const metadataById = new Map(
+    withMetadata.map((task) => [task.id, task.metadata ?? null]),
+  );
+
+  return fullWindow.map((task) => ({
+    ...task,
+    metadata: metadataById.get(task.id) ?? task.metadata ?? null,
+  }));
+}

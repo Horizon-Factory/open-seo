@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import {
   mapIdListTaskToSpendEntry,
+  mergeTaskMetadata,
   type IdListTask,
 } from "@/server/features/spend/backfill";
 import { loadLocalEnv, parseArgs } from "./cli-utils";
@@ -36,6 +37,8 @@ const SECTIONS = [
 // DataForSEO allows 10 id_list calls per minute.
 const RATE_LIMIT_PAUSE_MS = 6500;
 const PAGE_SIZE = 1000;
+// DataForSEO keeps request metadata for one month; stay inside it.
+const METADATA_WINDOW_DAYS = 28;
 
 const sqlString = (value: string | null) =>
   value === null ? "NULL" : `'${value.replaceAll("'", "''")}'`;
@@ -45,6 +48,7 @@ async function fetchSection(
   apiKey: string,
   since: string,
   until: string,
+  includeMetadata: boolean,
 ): Promise<IdListTask[]> {
   const response = await fetch(
     `https://api.dataforseo.com/v3/${section}/id_list`,
@@ -59,7 +63,7 @@ async function fetchSection(
           datetime_from: `${since} 00:00:00 +00:00`,
           datetime_to: until,
           limit: PAGE_SIZE,
-          include_metadata: true,
+          include_metadata: includeMetadata,
         },
       ]),
     },
@@ -97,14 +101,33 @@ async function main() {
   const since = args.since ?? "2026-06-05";
   const organizationId = args.org ?? "delegated-local-admin";
 
+  // Metadata is retained for one month only; asking for it over a longer
+  // window is rejected outright, so the subjects come from a second pass.
+  const metadataSince = new Date(Date.now() - METADATA_WINDOW_DAYS * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+  const metadataFrom = metadataSince > since ? metadataSince : since;
+
   const entries = [];
   for (const section of SECTIONS) {
-    const tasks = await fetchSection(section, apiKey, since, until);
-    if (tasks.length > 0) {
-      console.log(`  ${section}: ${tasks.length} tasks`);
-      entries.push(...tasks.map(mapIdListTaskToSpendEntry));
-    }
+    const tasks = await fetchSection(section, apiKey, since, until, false);
     await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_PAUSE_MS));
+
+    if (tasks.length === 0) continue;
+
+    const enriched = await fetchSection(
+      section,
+      apiKey,
+      metadataFrom,
+      until,
+      true,
+    );
+    await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_PAUSE_MS));
+
+    const merged = mergeTaskMetadata(tasks, enriched);
+    const named = merged.filter((t) => t.metadata).length;
+    console.log(`  ${section}: ${merged.length} tasks (${named} with subject)`);
+    entries.push(...merged.map(mapIdListTaskToSpendEntry));
   }
 
   const total = entries.reduce((sum, e) => sum + e.costUsd, 0);
