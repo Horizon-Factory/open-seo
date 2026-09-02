@@ -1,5 +1,6 @@
 import {
   buildSpendEntry,
+  extractSpendSubject,
   type SpendEntry,
   type SpendOutcome,
 } from "@/server/features/spend/spendLog";
@@ -33,19 +34,6 @@ function toIso(datetimePosted: string): string {
   return parsed.toISOString();
 }
 
-/**
- * What the call was actually for. Endpoints name their subject differently —
- * keyword research uses `keyword`, backlinks/domain endpoints use `target` —
- * so try both rather than storing the whole metadata blob.
- */
-function extractSubject(metadata: Record<string, unknown> | null | undefined) {
-  for (const key of ["keyword", "target", "domain"]) {
-    const value = metadata?.[key];
-    if (typeof value === "string" && value.length > 0) return value;
-  }
-  return null;
-}
-
 export function mapIdListTaskToSpendEntry(
   task: IdListTask,
 ): BackfilledSpendEntry {
@@ -60,7 +48,11 @@ export function mapIdListTaskToSpendEntry(
     now: new Date(toIso(task.datetime_posted)),
   });
 
-  return { ...entry, taskId: task.id, subject: extractSubject(task.metadata) };
+  return {
+    ...entry,
+    taskId: task.id,
+    subject: extractSpendSubject(task.metadata),
+  };
 }
 
 /**

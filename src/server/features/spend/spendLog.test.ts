@@ -82,4 +82,10 @@ describe("extractSpendSubject", () => {
   it("returns null when the input names no subject", () => {
     expect(extractSpendSubject({ limit: 10 })).toBeNull();
   });
+
+  it("names the audited page for endpoints whose subject is a url", () => {
+    expect(extractSpendSubject({ url: "https://horizonfactory.fr/a" })).toBe(
+      "https://horizonfactory.fr/a",
+    );
+  });
 });

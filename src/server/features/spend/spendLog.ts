@@ -61,9 +61,10 @@ export function buildSpendEntry(input: SpendEntryInput): SpendEntry {
 /**
  * What a call was for, read straight off the request input. Endpoints name
  * their subject differently — keyword research uses `keyword`, domain and
- * backlinks endpoints use `target`/`domain`, batch lookups send `keywords` —
- * so this is read generically at the metering boundary rather than threaded
- * through every call site.
+ * backlinks endpoints use `target`/`domain`, Lighthouse uses `url`, and batch
+ * lookups send a `keywords` array — so this is read generically rather than
+ * threaded through every call site. Shared with the id_list backfill, whose
+ * task metadata has the same shape as the request input it came from.
  */
 export function extractSpendSubject(input: unknown): string | null {
   if (typeof input !== "object" || input === null) return null;
@@ -71,7 +72,7 @@ export function extractSpendSubject(input: unknown): string | null {
   const read = (key: string): unknown =>
     key in input ? Reflect.get(input, key) : undefined;
 
-  for (const key of ["keyword", "target", "domain"]) {
+  for (const key of ["keyword", "target", "domain", "url"]) {
     const value = read(key);
     if (typeof value === "string" && value.length > 0) return value;
   }

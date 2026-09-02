@@ -35,6 +35,33 @@ describe("mapIdListTaskToSpendEntry", () => {
     expect(entry.creditFeature).toBe("backlinks");
   });
 
+  it("names the audited page for a lighthouse task", () => {
+    const entry = mapIdListTaskToSpendEntry({
+      id: "t4",
+      url: "v3/on_page/lighthouse/live/json",
+      datetime_posted: "2026-08-31 09:20:00 +00:00",
+      cost: 0.005,
+      status: 20000,
+      metadata: { url: "https://horizonfactory.fr/" },
+    });
+
+    expect(entry.subject).toBe("https://horizonfactory.fr/");
+    expect(entry.creditFeature).toBe("site_audit");
+  });
+
+  it("names the first keyword for a batch task", () => {
+    const entry = mapIdListTaskToSpendEntry({
+      id: "t5",
+      url: "v3/dataforseo_labs/google/keyword_ideas/live",
+      datetime_posted: "2026-08-31 09:21:00 +00:00",
+      cost: 0.03,
+      status: 20000,
+      metadata: { keywords: ["prise de notes ia", "dictaphone ia"] },
+    });
+
+    expect(entry.subject).toBe("prise de notes ia");
+  });
+
   it("marks a billed task that did not succeed as a charged failure", () => {
     const entry = mapIdListTaskToSpendEntry({
       id: "t3",

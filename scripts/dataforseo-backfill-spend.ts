@@ -136,8 +136,9 @@ async function main() {
   );
   if (entries.length === 0) return;
 
-  // ON CONFLICT on the unique task_id makes re-running a no-op rather than a
-  // duplicate — this script is expected to be run more than once.
+  // Upsert on the unique task_id: re-running never duplicates, and refreshes
+  // the fields DataForSEO is authoritative for. That matters because a later
+  // run can name calls an earlier one left unnamed.
   const values = entries
     .map(
       (e) =>
@@ -149,7 +150,10 @@ async function main() {
   const sql =
     `INSERT INTO dataforseo_spend\n` +
     `  (organization_id, task_id, path, credit_feature, cost_usd, subject, source, outcome, occurred_at)\n` +
-    `VALUES\n${values}\nON CONFLICT(task_id) DO NOTHING;\n`;
+    `VALUES\n${values}\nON CONFLICT(task_id) DO UPDATE SET\n` +
+    `  subject = COALESCE(excluded.subject, dataforseo_spend.subject),\n` +
+    `  cost_usd = excluded.cost_usd,\n` +
+    `  outcome = excluded.outcome;\n`;
 
   const sqlFile = "/tmp/dataforseo-backfill.sql";
   writeFileSync(sqlFile, sql);
