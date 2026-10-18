@@ -1,9 +1,11 @@
+/* eslint-disable max-lines -- application table declarations */
 import {
   sqliteTable,
   text,
   integer,
   real,
   uniqueIndex,
+  primaryKey,
   index,
 } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
@@ -60,6 +62,9 @@ export const projects = sqliteTable(
     // Soft delete: archived projects are hidden everywhere but their data
     // (keywords, rank tracking, audits) is preserved.
     archivedAt: text("archived_at"),
+    // The Prompt Research keywords from AI visibility setup, one
+    // per line, most important first. Null until setup runs.
+    aiResearchKeywords: text("ai_research_keywords"),
   },
   (table) => [
     // Only the auto-created Default/null-domain project is a singleton. This
@@ -258,10 +263,19 @@ export const rankTrackingKeywords = sqliteTable(
       .notNull()
       .references(() => rankTrackingConfigs.id, { onDelete: "cascade" }),
     keyword: text("keyword").notNull(),
+    // Keywords are lowercased on add unless this is set, in which case the
+    // keyword is stored and searched exactly as typed. Google can return a
+    // different SERP for "Nodex" than for "nodex".
+    matchCase: integer("match_case", { mode: "boolean" })
+      .notNull()
+      .default(false),
     searchVolume: integer("search_volume"),
     keywordDifficulty: integer("keyword_difficulty"),
     cpc: real("cpc"),
     metricsFetchedAt: text("metrics_fetched_at"),
+    // Set when a user pins the keyword to the top of the tracker's table.
+    // Pins are shared by everyone in the project.
+    pinnedAt: text("pinned_at"),
     createdAt: text("created_at")
       .notNull()
       .default(sql`(current_timestamp)`),
@@ -371,12 +385,13 @@ export const organizationActivationState = sqliteTable(
 
 // Per-project state for the dashboard's onboarding checklist. Most steps
 // complete via real product state (projects.domain, gsc_connections, MCP
-// activation); the competitor step completes on click-through.
+// activation); the competitor and keyword steps complete on click-through.
 export const projectActivationState = sqliteTable("project_activation_state", {
   projectId: text("project_id")
     .primaryKey()
     .references(() => projects.id, { onDelete: "cascade" }),
   competitorStepClickedAt: text("competitor_step_clicked_at"),
+  keywordStepClickedAt: text("keyword_step_clicked_at"),
   // "I already connected" on the MCP card: hides the card for this project
   // without faking the org-level first-tool-call milestone, which stays
   // truthful and self-heals when a real external call lands.
@@ -389,11 +404,8 @@ export const projectActivationState = sqliteTable("project_activation_state", {
     .default(sql`(current_timestamp)`),
 });
 
-// Point-in-time backlink profile summaries for the project's own domain,
-// written by the dashboard's visit-triggered refresh. DataForSEO's summary
-// already carries new/lost counts, so one snapshot renders a full card;
-// rows accumulate into history for future trend views. The domain is stored
-// per row so a later project-domain change doesn't rewrite history.
+// Retained backlink profile history. The dashboard no longer writes snapshots.
+// Each row keeps its original domain when the project website changes.
 export const backlinkSnapshots = sqliteTable(
   "backlink_snapshots",
   {
@@ -419,5 +431,98 @@ export const backlinkSnapshots = sqliteTable(
       table.projectId,
       table.capturedAt,
     ),
+  ],
+);
+
+// Personal checklist preferences; completion remains derived from product state.
+export const dashboardStepDismissals = sqliteTable(
+  "dashboard_step_dismissals",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    step: text("step").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.projectId, table.step] }),
+    index("dashboard_step_dismissals_project_idx").on(table.projectId),
+  ],
+);
+
+// Crawler-access credentials for one host (currently only Shopify's
+// domain-scoped crawler signature). Stored on the project (website) it was
+// added for; an audit looks across the organization's projects, so a second
+// project auditing the same store still picks it up. The signature values are
+// encrypted, and never returned to the client.
+export const crawlerCredentials = sqliteTable(
+  "crawler_credentials",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    // Normalized lowercase hostname, e.g. "www.store.com".
+    host: text("host").notNull(),
+    provider: text("provider", { enum: ["shopify"] }).notNull(),
+    signatureInput: text("signature_input").notNull(),
+    signature: text("signature").notNull(),
+    // Parsed from the RFC 9421 `expires=` parameter when present; null when
+    // the signature input carries no expiry.
+    expiresAt: text("expires_at"),
+    createdByUserId: text("created_by_user_id"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(current_timestamp)`),
+  },
+  (table) => [
+    uniqueIndex("crawler_credentials_project_host_idx").on(
+      table.projectId,
+      table.host,
+    ),
+  ],
+);
+
+export { dataRefreshClaims } from "./dashboard.schema";
+
+// Per-call DataForSEO spend. Every call already carries its own cost in the
+// response envelope; hosted mode forwards that to the credit ledger, while
+// self-hosted mode used to discard it — leaving no way to see where an account
+// balance went. This table is that record.
+export const dataforseoSpend = sqliteTable(
+  "dataforseo_spend",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    // Plain text, deliberately NOT a foreign key: self-hosted runs under a
+    // synthetic organization id ("delegated-local-admin") with no row in
+    // `organization`, and an FK would reject every insert.
+    organizationId: text("organization_id"),
+    // Nulled rather than cascaded on project delete, so spend history survives
+    // the project that caused it.
+    projectId: text("project_id").references(() => projects.id, {
+      onDelete: "set null",
+    }),
+    // DataForSEO's own task id. Unique so a backfill can be re-run safely.
+    taskId: text("task_id"),
+    path: text("path").notNull(),
+    creditFeature: text("credit_feature").notNull(),
+    costUsd: real("cost_usd").notNull(),
+    // What the call was for: the keyword, target or domain.
+    subject: text("subject"),
+    // MCP tool or route that triggered the call, when known.
+    source: text("source"),
+    // "ok" | "charged_failure" — a call DataForSEO billed and then failed.
+    outcome: text("outcome").notNull().default("ok"),
+    occurredAt: text("occurred_at")
+      .notNull()
+      .default(sql`(current_timestamp)`),
+  },
+  (table) => [
+    index("dataforseo_spend_occurred_idx").on(table.occurredAt),
+    index("dataforseo_spend_feature_idx").on(table.creditFeature),
+    index("dataforseo_spend_project_idx").on(table.projectId),
+    uniqueIndex("dataforseo_spend_task_id_idx").on(table.taskId),
   ],
 );
