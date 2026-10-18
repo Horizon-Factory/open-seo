@@ -30,6 +30,7 @@ const {
   getOrCreateMock,
   isHostedServerAuthModeMock,
   mockEnv,
+  recordSpendMock,
 } = vi.hoisted(() => ({
   checkMock: vi.fn<(arg: CheckCallArg) => Promise<CheckResult>>(),
   finalizeMock:
@@ -37,6 +38,8 @@ const {
   getOrCreateMock: vi.fn(),
   isHostedServerAuthModeMock: vi.fn(),
   mockEnv: {},
+  recordSpendMock:
+    vi.fn<(input: { subject?: string | null }) => Promise<void>>(),
 }));
 
 vi.mock("cloudflare:workers", () => ({
@@ -65,6 +68,10 @@ vi.mock("@/server/billing/subscription", async (importOriginal) => {
 
 vi.mock("@/server/lib/runtime-env", () => ({
   isHostedServerAuthMode: isHostedServerAuthModeMock,
+}));
+
+vi.mock("@/server/features/spend/services/SpendService", () => ({
+  recordDataforseoSpend: recordSpendMock,
 }));
 
 vi.mock("@/server/lib/posthog", () => ({
@@ -287,6 +294,98 @@ describe("meterDataforseoCall", () => {
 
     expect(vi.mocked(waitUntil)).toHaveBeenCalledTimes(1);
     expect(finalizeMock.mock.calls[0][0]).toMatchObject({ action: "release" });
+  });
+});
+
+describe("self-hosted spend recording", () => {
+  it("records the call cost instead of discarding it", async () => {
+    isHostedServerAuthModeMock.mockResolvedValue(false);
+    recordSpendMock.mockClear();
+    mockDataforseoResult(RAW_COST);
+
+    const client = createDataforseoClient(billingCustomer);
+    await client.backlinks.summary(backlinksInput);
+
+    expect(recordSpendMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        billing: { costUsd: RAW_COST, path: backlinksPath },
+        organizationId: "org_123",
+        subject: "example.com",
+      }),
+    );
+  });
+
+  it("attributes spend to the project the call was made from", async () => {
+    isHostedServerAuthModeMock.mockResolvedValue(false);
+    recordSpendMock.mockClear();
+    mockDataforseoResult(RAW_COST);
+
+    const client = createDataforseoClient({
+      ...billingCustomer,
+      projectId: "proj_notus",
+    });
+    await client.backlinks.summary(backlinksInput);
+
+    expect(recordSpendMock).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: "proj_notus" }),
+    );
+  });
+
+  it("records a call DataForSEO billed and then failed", async () => {
+    isHostedServerAuthModeMock.mockResolvedValue(false);
+    recordSpendMock.mockClear();
+    vi.mocked(fetchBacklinksSummary).mockRejectedValue(
+      new DataforseoChargedTaskError("DataForSEO task failed", {
+        costUsd: 0.03,
+        path: backlinksPath,
+      }),
+    );
+
+    const client = createDataforseoClient(billingCustomer);
+    await expect(client.backlinks.summary(backlinksInput)).rejects.toThrow(
+      "DataForSEO task failed",
+    );
+
+    expect(recordSpendMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        billing: { costUsd: 0.03, path: backlinksPath },
+        outcome: "charged_failure",
+      }),
+    );
+  });
+
+  it("records each call of a rank check batch with its own keyword", async () => {
+    isHostedServerAuthModeMock.mockResolvedValue(false);
+    recordSpendMock.mockClear();
+    vi.mocked(fetchRankCheckSerp).mockResolvedValue({
+      data: {
+        keywordId: "kw",
+        keyword: "x",
+        position: 1,
+        url: null,
+        serpFeatures: [],
+      },
+      billing: { costUsd: 0.001, path: ["v3", "serp"] },
+    });
+    const base = {
+      keywordId: "kw",
+      locationCode: 2840,
+      languageCode: "en",
+      device: "desktop" as const,
+      targetDomain: "example.com",
+      depth: 10,
+    };
+
+    const client = createDataforseoClient(billingCustomer);
+    await client.serp.rankCheckBatch([
+      { ...base, keyword: "alpha" },
+      { ...base, keyword: "beta" },
+    ]);
+
+    expect(recordSpendMock.mock.calls.map(([arg]) => arg.subject)).toEqual([
+      "alpha",
+      "beta",
+    ]);
   });
 });
 

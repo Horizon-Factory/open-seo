@@ -9,6 +9,7 @@ import {
   CircleHelp,
   CreditCard,
   LogOut,
+  Receipt,
   Settings,
   User,
 } from "lucide-react";
@@ -28,6 +29,7 @@ import { ThemePreferenceRadio } from "@/client/components/ThemePreferenceMenuIte
 import { getStandardErrorMessage } from "@/client/lib/error-messages";
 import { signOutAndRedirect, useSession } from "@/lib/auth-client";
 import { BILLING_ROUTE } from "@/shared/billing";
+import { isHostedClientAuthMode } from "@/lib/auth-mode";
 import {
   Sidebar as UiSidebar,
   SidebarContent,
@@ -303,6 +305,16 @@ function AccountFooter({ ready }: { ready: boolean }) {
                   <CreditCard className="size-4" />
                   Billing
                 </DropdownMenuItem>
+                {isHostedClientAuthMode() ? null : (
+                  <DropdownMenuItem
+                    render={
+                      <Link to="/spend" onClick={() => setOpenMobile(false)} />
+                    }
+                  >
+                    <Receipt className="size-4" />
+                    Data spend
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuGroup>
                   <DropdownMenuLabel>Theme</DropdownMenuLabel>
                   <div className="px-1 pb-1">
@@ -321,11 +333,20 @@ function AccountFooter({ ready }: { ready: boolean }) {
             </DropdownMenu>
           </SidebarMenuItem>
         ) : ready ? (
-          <SidebarNavLink
-            icon={Settings}
-            label="Settings"
-            linkProps={{ to: "/settings" }}
-          />
+          <>
+            {isHostedClientAuthMode() ? null : (
+              <SidebarNavLink
+                icon={Receipt}
+                label="Data spend"
+                linkProps={{ to: "/spend" }}
+              />
+            )}
+            <SidebarNavLink
+              icon={Settings}
+              label="Settings"
+              linkProps={{ to: "/settings" }}
+            />
+          </>
         ) : (
           // The account row's slot while the session loads.
           <SidebarMenuItem>

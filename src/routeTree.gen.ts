@@ -22,6 +22,7 @@ import { Route as AppAiRouteImport } from './routes/_app/ai'
 import { Route as AppBillingRouteImport } from './routes/_app/billing'
 import { Route as AppProjectsRouteImport } from './routes/_app/projects'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
+import { Route as AppSpendRouteImport } from './routes/_app/spend'
 import { Route as AppSupportRouteImport } from './routes/_app/support'
 import { Route as AuthSignInRouteImport } from './routes/_auth.sign-in'
 import { Route as AuthSignUpRouteImport } from './routes/_auth.sign-up'
@@ -133,6 +134,11 @@ const AppProjectsRoute = AppProjectsRouteImport.update({
 const AppSettingsRoute = AppSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppSpendRoute = AppSpendRouteImport.update({
+  id: '/spend',
+  path: '/spend',
   getParentRoute: () => AppRouteRoute,
 } as any)
 const AppSupportRoute = AppSupportRouteImport.update({
@@ -411,6 +417,7 @@ export interface FileRoutesByFullPath {
   '/billing': typeof AppBillingRoute
   '/projects': typeof AppProjectsRoute
   '/settings': typeof AppSettingsRouteWithChildren
+  '/spend': typeof AppSpendRoute
   '/support': typeof AppSupportRoute
   '/sign-in': typeof AuthSignInRoute
   '/sign-up': typeof AuthSignUpRoute
@@ -471,6 +478,7 @@ export interface FileRoutesByTo {
   '/ai': typeof AppAiRoute
   '/billing': typeof AppBillingRoute
   '/projects': typeof AppProjectsRoute
+  '/spend': typeof AppSpendRoute
   '/support': typeof AppSupportRoute
   '/sign-in': typeof AuthSignInRoute
   '/sign-up': typeof AuthSignUpRoute
@@ -531,6 +539,7 @@ export interface FileRoutesById {
   '/_app/billing': typeof AppBillingRoute
   '/_app/projects': typeof AppProjectsRoute
   '/_app/settings': typeof AppSettingsRouteWithChildren
+  '/_app/spend': typeof AppSpendRoute
   '/_app/support': typeof AppSupportRoute
   '/_auth/sign-in': typeof AuthSignInRoute
   '/_auth/sign-up': typeof AuthSignUpRoute
@@ -595,6 +604,7 @@ export interface FileRouteTypes {
     | '/billing'
     | '/projects'
     | '/settings'
+    | '/spend'
     | '/support'
     | '/sign-in'
     | '/sign-up'
@@ -655,6 +665,7 @@ export interface FileRouteTypes {
     | '/ai'
     | '/billing'
     | '/projects'
+    | '/spend'
     | '/support'
     | '/sign-in'
     | '/sign-up'
@@ -714,6 +725,7 @@ export interface FileRouteTypes {
     | '/_app/billing'
     | '/_app/projects'
     | '/_app/settings'
+    | '/_app/spend'
     | '/_app/support'
     | '/_auth/sign-in'
     | '/_auth/sign-up'
@@ -878,6 +890,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/_app/spend': {
+      id: '/_app/spend'
+      path: '/spend'
+      fullPath: '/spend'
+      preLoaderRoute: typeof AppSpendRouteImport
       parentRoute: typeof AppRouteRoute
     }
     '/_app/support': {
@@ -1345,6 +1364,7 @@ interface AppRouteRouteChildren {
   AppBillingRoute: typeof AppBillingRoute
   AppProjectsRoute: typeof AppProjectsRoute
   AppSettingsRoute: typeof AppSettingsRouteWithChildren
+  AppSpendRoute: typeof AppSpendRoute
   AppSupportRoute: typeof AppSupportRoute
   AppIndexRoute: typeof AppIndexRoute
   AppPProjectIdRouteRoute: typeof AppPProjectIdRouteRouteWithChildren
@@ -1358,6 +1378,7 @@ const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppBillingRoute: AppBillingRoute,
   AppProjectsRoute: AppProjectsRoute,
   AppSettingsRoute: AppSettingsRouteWithChildren,
+  AppSpendRoute: AppSpendRoute,
   AppSupportRoute: AppSupportRoute,
   AppIndexRoute: AppIndexRoute,
   AppPProjectIdRouteRoute: AppPProjectIdRouteRouteWithChildren,

@@ -98,6 +98,7 @@ export const {
   backlinkSnapshots,
   dataRefreshClaims,
   crawlerCredentials,
+  dataforseoSpend,
   projectContextSections,
   projectCompetitors,
   projectKeyPages,

@@ -64,6 +64,8 @@ import {
   postAiTrackingTasks,
 } from "@/server/lib/dataforseo/ai-tracking";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
+import { extractSpendSubject } from "@/server/features/spend/spendLog";
+import { executeAndRecordSpend } from "@/server/features/spend/executeAndRecordSpend";
 import { AppError } from "@/server/lib/errors";
 
 export { mapDataforseoPathToCreditFeature };
@@ -94,6 +96,7 @@ function meter<I, T>(
       () => fetcher(input),
       creditsForProviderUsd(estimateRawUsd(input)),
       input.creditFeature ?? defaultFeature,
+      extractSpendSubject(input),
     );
 }
 
@@ -217,6 +220,7 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
             creditsForProviderUsd(dataforseoPricing.serp.rankCheck(input)),
           ),
           "rank_tracking",
+          inputs.map(extractSpendSubject),
         ),
       // Posts up to 100 queued rank check tasks; one metered charge covers the
       // whole batch (DataForSEO bills task_post at post time, collection is
@@ -313,6 +317,7 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
             ),
           ),
           "ai_prompt_responses",
+          inputs.map(extractSpendSubject),
         ),
     },
   } as const;
@@ -335,13 +340,23 @@ async function meterDataforseoCalls<T>(
   executes: Array<() => Promise<DataforseoApiResponse<T>>>,
   callCredits: number[],
   creditFeature?: CreditFeature,
+  subjects: Array<string | null> = [],
 ): Promise<PromiseSettledResult<T>[]> {
   if (executes.length === 0) return [];
   const isHostedMode = await isHostedServerAuthMode();
 
   if (!isHostedMode) {
+    const { recordDataforseoSpend } = await loadSpendRecorder();
     return Promise.allSettled(
-      executes.map(async (execute) => (await execute()).data),
+      executes.map((execute, index) =>
+        executeAndRecordSpend(
+          recordDataforseoSpend,
+          customer,
+          execute,
+          creditFeature,
+          subjects[index] ?? null,
+        ),
+      ),
     );
   }
 
@@ -418,13 +433,24 @@ async function meterDataforseoCall<T>(
   execute: () => Promise<DataforseoApiResponse<T>>,
   estimatedCredits: number,
   creditFeature?: CreditFeature,
+  subject: string | null = null,
 ): Promise<T> {
   const [result] = await meterDataforseoCalls(
     customer,
     [execute],
     [estimatedCredits],
     creditFeature,
+    [subject],
   );
   if (result.status === "rejected") throw result.reason;
   return result.value;
+}
+
+/**
+ * Lazily loaded: a static import would pull `@/db` (and the Cloudflare `env`
+ * binding it reads at module scope) into this module's eager graph, breaking
+ * consumers that only want the DataForSEO client.
+ */
+function loadSpendRecorder() {
+  return import("@/server/features/spend/services/SpendService");
 }
